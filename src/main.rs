@@ -26,7 +26,7 @@ async fn main() -> WebDriverResult<()> {
     let caps = DesiredCapabilities::chrome();
     let driver = WebDriver::new("http://localhost:9515", caps).await?;
     let mut enigo = Enigo::new(&Settings::default()).unwrap();
-    let file = File::open("C:/Users/AlexR/Dev/wordle-solver/src/words.csv").unwrap();
+    let file = File::open("src/words.csv").unwrap();
     let reader = BufReader::new(file);
     let mut words = vec![];
     let frequency_table = init_frequency_table();
