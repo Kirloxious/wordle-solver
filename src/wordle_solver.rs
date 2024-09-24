@@ -3,6 +3,7 @@ use std::{
     fs::File,
     hash::{Hash, Hasher},
     io::{BufRead, BufReader},
+    vec,
 };
 
 pub enum LetterState {
@@ -21,10 +22,10 @@ impl Into<LetterState> for String {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WordleSolver {
-    pub present_letters: HashSet<Letter>,
-    pub absent_letters: HashSet<String>,
+    pub present_letters: Vec<String>,
+    pub absent_letters: HashMap<String, Vec<usize>>,
     pub final_word: [String; 5],
     pub words: Vec<String>,
     letter_freq_table: HashMap<String, f32>,
@@ -33,8 +34,8 @@ pub struct WordleSolver {
 impl WordleSolver {
     pub fn new() -> Self {
         WordleSolver {
-            present_letters: HashSet::<Letter>::new(),
-            absent_letters: HashSet::<String>::new(),
+            present_letters: Vec::<String>::new(),
+            absent_letters: HashMap::<String, Vec<usize>>::new(),
             final_word: core::array::from_fn(|_| "".to_string()),
             words: Self::import_words(),
             letter_freq_table: Self::init_frequency_table(),
@@ -48,18 +49,69 @@ impl WordleSolver {
         index: Option<usize>,
     ) -> bool {
         match state.into() {
-            LetterState::Absent => self.absent_letters.insert(letter.into()),
-            LetterState::Present => self.present_letters.insert(Letter {
-                letter: letter.into(),
-                invalid_indices: Some(vec![index.expect("No index")]),
-            }),
+            LetterState::Absent => {
+                let l: String = letter.into();
+                if !self.absent_letters.contains_key(&l) {
+                    if !self.present_letters.contains(&l) || !self.final_word.contains(&l) {
+                        self.absent_letters
+                            .insert(l, (0..6).collect::<Vec<usize>>());
+                    } else {
+                        self.absent_letters
+                            .insert(l, vec![index.expect("No Index value")]);
+                    }
+                } else {
+                    let mut indicies = self
+                        .absent_letters
+                        .get(&l)
+                        .expect("No vec of indicies")
+                        .to_owned();
+                    if let Some(i) = index {
+                        indicies.push(i);
+                    }
+                    self.absent_letters.insert(l, indicies);
+                }
+
+                true
+            } //check if the letter is in the present letters set and remove
+            LetterState::Present => {
+                let l: String = letter.into();
+                self.present_letters.push(l.clone());
+                if self.absent_letters.contains_key(&l) {
+                    let mut indicies = self
+                        .absent_letters
+                        .get(&l)
+                        .expect("No vec of indicies")
+                        .to_owned();
+                    if let Some(i) = index {
+                        indicies.push(i);
+                    }
+                    self.absent_letters.insert(l, indicies);
+                } else {
+                    self.absent_letters
+                        .insert(l, vec![index.expect("No Index")]);
+                }
+
+                true
+            }
             LetterState::Correct => {
                 let l: String = letter.into();
                 self.final_word[index.expect("No index")] = l.clone();
-                self.present_letters.insert(Letter {
-                    letter: l.clone(),
-                    invalid_indices: Some((0..6).filter(|x| *x != index.unwrap()).collect()),
-                })
+                self.present_letters.push(l.clone());
+                if self.absent_letters.contains_key(&l) {
+                    let mut indicies = self
+                        .absent_letters
+                        .get(&l)
+                        .expect("No vec of indicies")
+                        .to_owned();
+                    if let Some(i) = index {
+                        if indicies.len() > i {
+                            indicies.remove(i);
+                            self.absent_letters.insert(l, indicies);
+                        }
+                    }
+                }
+
+                true
             }
         }
     }
@@ -69,18 +121,35 @@ impl WordleSolver {
             .iter()
             .map(|word| word.clone())
             .filter(|word| {
-                !word.chars().any(|c| self.absent_letters.contains(&String::from(c)))    //remove the know absent_letters letters
-                        && self.present_letters.is_subset(&HashSet::from_iter(                    //check if the word contains the letter in the known letter set
-                            word.chars().map(|c| Letter::from(String::from(c))),
-                        ))
-                        && word.char_indices().any(|(i, c)| {           //check if the the word has the letter in the indices where it is known the letter cannot be there 
-                            self.present_letters.iter().any(|l| {
-                                l.letter == String::from(c)
-                                    && l.invalid_indices.is_some()
-                                    && !l.invalid_indices.as_ref().unwrap().contains(&i)
-                            })
-                            && word.char_indices().all(|(i, _)| self.final_word[i] == String::from(word.chars().nth(i).unwrap()) || self.final_word[i] == "") //check for letters in the correct positions
+                //check for letters in the correct positions;
+                let filter_correct = word.char_indices().all(|(i, _)| {
+                    self.final_word[i] == String::from(word.chars().nth(i).unwrap())
+                        || self.final_word[i] == ""
+                });
+                filter_correct
+            })
+            .filter(|word| {
+                //remove the know absent_letters letters
+                let filter_absent = !word.chars().any(|c| {
+                    self.absent_letters.contains_key(&String::from(c))
+                //check if the the word has the letter in the indices where it is known the letter cannot be there
+                        && word.char_indices().any(|(i, c)| {
+                            match self.absent_letters.get(&String::from(c)) {
+                                Some(result) => result.contains(&i),
+                                None => false,
+                            }
                         })
+                });
+                filter_absent
+            })
+            .filter(|word| {
+                //check if the word contains the letter in the known letter set
+                let filter_known = self
+                    .present_letters
+                    .iter()
+                    .all(|letter| word.contains(letter));
+
+                filter_known
             })
             .collect();
     }
@@ -130,21 +199,27 @@ impl WordleSolver {
 
     pub fn find_optimal_word(&self) -> String {
         let (mut score, mut index) = (0.0, 0);
-
+        let mut dup_set = HashSet::<char>::new();
         for (i, word) in self.words.iter().enumerate() {
             let mut current_score = 0.0;
             word.chars().for_each(|c| {
-                current_score += self
+                let c_score = self
                     .letter_freq_table
                     .get(&String::from(c))
-                    .expect("No value")
+                    .expect("No value");
+
+                if dup_set.insert(c) {
+                    current_score += c_score;
+                } else {
+                    current_score += c_score * 0.50; //reduce score for duplicate letters
+                }
             });
             if current_score >= score {
                 score = current_score;
                 index = i;
             }
         }
-        println!("Words: {:?}", self.words);
+        assert!(!self.words.is_empty(), "Word list is empty");
         return self.words[index].clone();
     }
 }
@@ -152,7 +227,6 @@ impl WordleSolver {
 #[derive(Debug)]
 pub struct Letter {
     letter: String,
-    invalid_indices: Option<Vec<usize>>,
 }
 impl PartialEq for Letter {
     fn eq(&self, other: &Self) -> bool {
@@ -173,9 +247,6 @@ impl Hash for Letter {
 
 impl From<String> for Letter {
     fn from(value: String) -> Self {
-        Letter {
-            letter: value,
-            invalid_indices: None,
-        }
+        Letter { letter: value }
     }
 }

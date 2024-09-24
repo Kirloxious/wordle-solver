@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use enigo::{Direction::Click, Enigo, InputError, Key, Keyboard, Settings};
 use thirtyfour::prelude::*;
 use wordle_solver::*;
@@ -48,8 +46,8 @@ async fn main() -> WebDriverResult<()> {
         .find_all(By::ClassName("Row-module_row__pwpBq"))
         .await?;
 
-    // let mut guess = BEST_COMMON_STARTING_WORDS[3].to_owned();
-    let mut guess = "apple".to_string();
+    let mut guess = BEST_COMMON_STARTING_WORDS[1].to_owned();
+    // let mut guess = "trace".to_string();
 
     for i in 0..6 {
         type_word(guess, &mut enigo).unwrap();
@@ -66,10 +64,9 @@ async fn main() -> WebDriverResult<()> {
         }
 
         solver.filter_words();
-        println!("{:?}", solver.final_word);
-        println!("{:?}", solver.present_letters);
-        println!("{:?}", solver.absent_letters);
-        println!("{:?}", solver.words);
+        println!("Final word: {:?}", solver.final_word);
+        println!("Present Letters: {:?}", solver.present_letters);
+        println!("Absent Letter: {:?}", solver.absent_letters);
         guess = solver.find_optimal_word();
     }
 
@@ -81,7 +78,6 @@ async fn main() -> WebDriverResult<()> {
 
 fn type_word(word: String, enigo: &mut Enigo) -> Result<(), InputError> {
     for letter in word.chars() {
-        println!("{letter}");
         enigo.key(Key::Unicode(letter), Click)?
     }
     enigo.key(Key::Return, Click).unwrap();
