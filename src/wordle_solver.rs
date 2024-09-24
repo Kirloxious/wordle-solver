@@ -5,7 +5,7 @@ use std::{
     io::{BufRead, BufReader},
     vec,
 };
-
+#[derive(PartialEq, Eq)]
 pub enum LetterState {
     Absent,
     Present,
@@ -22,6 +22,7 @@ impl Into<LetterState> for String {
         }
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct WordleSolver {
     pub present_letters: Vec<String>,
@@ -194,6 +195,34 @@ impl WordleSolver {
         map.insert("j".to_string(), 1.01);
         map.insert("q".to_string(), 1.00);
 
+        // Wordle words freq analysis
+        // map.insert("a".to_string(), 8.45);
+        // map.insert("b".to_string(), 2.43);
+        // map.insert("c".to_string(), 4.11);
+        // map.insert("d".to_string(), 3.40);
+        // map.insert("e".to_string(), 10.65);
+        // map.insert("f".to_string(), 1.98);
+        // map.insert("g".to_string(), 2.69);
+        // map.insert("h".to_string(), 3.35);
+        // map.insert("i".to_string(), 5.80);
+        // map.insert("j".to_string(), 0.23);
+        // map.insert("k".to_string(), 1.82);
+        // map.insert("l".to_string(), 6.20);
+        // map.insert("m".to_string(), 2.74);
+        // map.insert("n".to_string(), 4.96);
+        // map.insert("o".to_string(), 6.52);
+        // map.insert("p".to_string(), 3.16);
+        // map.insert("q".to_string(), 0.25);
+        // map.insert("r".to_string(), 7.77);
+        // map.insert("s".to_string(), 5.79);
+        // map.insert("t".to_string(), 6.31);
+        // map.insert("u".to_string(), 4.04);
+        // map.insert("v".to_string(), 1.32);
+        // map.insert("w".to_string(), 1.68);
+        // map.insert("x".to_string(), 0.32);
+        // map.insert("y".to_string(), 3.67);
+        // map.insert("z".to_string(), 0.35);
+
         return map;
     }
 
@@ -211,7 +240,7 @@ impl WordleSolver {
                 if dup_set.insert(c) {
                     current_score += c_score;
                 } else {
-                    current_score += c_score * 0.50; //reduce score for duplicate letters
+                    current_score += c_score / 2.0; //reduce score for duplicate letters
                 }
             });
             if current_score >= score {

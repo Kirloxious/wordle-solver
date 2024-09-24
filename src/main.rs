@@ -5,8 +5,10 @@ use wordle_solver::*;
 pub mod wordle_solver;
 
 /*
-    Things to do:
-        - Check for edge cases (double letter, prevent guessing same letter twice in a word)
+    TODO:
+        - Take user input for first guess.
+        - Do frequency analysis on the wordle words
+
 
 
 
@@ -50,6 +52,7 @@ async fn main() -> WebDriverResult<()> {
     // let mut guess = "trace".to_string();
 
     for i in 0..6 {
+        println!("Guess #{}: {guess}", i + 1);
         type_word(guess, &mut enigo).unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(2000)).await; //wait for animation to finish
 
@@ -57,16 +60,24 @@ async fn main() -> WebDriverResult<()> {
             .find_all(By::ClassName("Tile-module_tile__UWEHN"))
             .await?;
 
+        let mut guess_state = Vec::<LetterState>::new();
         for (i, s) in squares.iter().enumerate() {
             let state = s.attr("data-state").await?.expect("No state");
+            guess_state.push(state.clone().into());
             let letter = s.inner_html().await?;
             solver.insert_letter(letter, state, Some(i));
         }
-
+        if guess_state
+            .iter()
+            .all(|state| *state == LetterState::Correct {})
+        {
+            println!("Wordle Solved");
+            break;
+        }
         solver.filter_words();
-        println!("Final word: {:?}", solver.final_word);
-        println!("Present Letters: {:?}", solver.present_letters);
-        println!("Absent Letter: {:?}", solver.absent_letters);
+        // println!("Final word: {:?}", solver.final_word);
+        // println!("Present Letters: {:?}", solver.present_letters);
+        // println!("Absent Letter: {:?}", solver.absent_letters);
         guess = solver.find_optimal_word();
     }
 
